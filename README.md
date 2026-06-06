@@ -129,7 +129,7 @@ scripts/
 
 ## Deploy to Vercel
 
-Vercel supports this FastAPI app with zero extra wiring. The repo already includes `pyproject.toml` and `vercel.json`.
+Vercel supports this FastAPI app with zero extra wiring. The repo uses `pyproject.toml` for auto-detection — do **not** add a `vercel.json` `functions` block pointing at `app/main.py` (that causes build failures).
 
 ### 1. Import the GitHub repo
 
@@ -166,7 +166,7 @@ Your upload UI will be at `https://your-project.vercel.app/`.
 
 This MVP can work on Vercel, but keep these constraints in mind:
 
-- **Timeouts** — each upload runs as one serverless function. Multi-chapter manuscripts with several Anthropic calls may exceed limits on the Hobby plan (10s). Pro allows longer runs (up to 300s with `vercel.json`).
+- **Timeouts** — each upload runs as one serverless function. Multi-chapter manuscripts with several Anthropic calls may exceed limits on the Hobby plan (10s). On Pro, increase **Function Max Duration** in the Vercel project settings.
 - **Upload size** — request body is limited to about **4.5 MB**.
 - **No persistent disk** — files are written to `/tmp` during a request only.
 

@@ -6,29 +6,41 @@ import anthropic
 from app.config import settings
 from app.models import ChapterAnalysis, ReviewCategory, ReviewItem
 
+MAX_REVIEW_ITEMS = 8
+MAX_FLAG_WORDS = 3
+MAX_FLAG_CHARS = 40
+MAX_SENTENCE_CHARS = 220
+
 
 def _build_system_prompt() -> str:
-    return """You are an editorial review assistant for manuscript proofreading.
+    return """You are a simple proofreading assistant. Flag only small issues for human review.
 
-Your job is to FLAG items for human review. You must NOT rewrite, correct, or suggest replacement text.
-
-Return ONLY valid JSON matching this schema:
+Return ONLY valid JSON:
 {
   "review_items": [
-    {"text": "exact phrase from chapter", "category": "spelling|unusual|typography", "note": "brief reason"}
+    {"text": "word or short phrase", "category": "spelling|unusual|typography"}
   ],
-  "emphasis_sentence": "full sentence or null",
-  "blockquote_sentence": "full sentence or null",
-  "closing_anchor": "short phrase from near chapter end or null"
+  "emphasis_sentence": "one sentence or null",
+  "blockquote_sentence": "one sentence or null",
+  "closing_anchor": "3-8 words from near chapter end or null"
 }
 
-Rules:
-- review_items: flag potential spelling mistakes, unusual/suspicious words, and typographical issues.
-- Each "text" value MUST appear verbatim (or nearly verbatim) in the chapter.
-- Limit review_items to the most useful 15 items per chapter.
-- emphasis_sentence and blockquote_sentence: only provide when requested (odd chapters). Pick one strong sentence each.
-- closing_anchor: a short distinctive phrase from the last third of the chapter, marking where a closing section heading should be inserted AFTER that point.
-- Do not modify manuscript content in your output — only identify items."""
+Rules for review_items:
+- Flag ONLY: likely misspellings, odd/unusual words, obvious typos (wrong punctuation, doubled letters).
+- Each "text" must be 1-3 words max, copied exactly from the chapter.
+- Maximum 8 items per chapter.
+- Do NOT flag: story structure, repeated scenes, chapter numbers, placeholders, whole sentences, or paragraphs.
+- Do NOT add explanations.
+
+Rules for emphasis_sentence / blockquote_sentence (odd chapters only):
+- Pick exactly ONE normal prose sentence each (under 25 words).
+- Must appear verbatim in the chapter.
+- Do not pick the opening sentence or an entire paragraph.
+
+Rules for closing_anchor:
+- A short phrase (3-8 words) from the last third of the chapter.
+
+Do not rewrite or correct anything."""
 
 
 def _build_user_prompt(
@@ -38,18 +50,18 @@ def _build_user_prompt(
     closing_heading: str,
 ) -> str:
     emphasis_instruction = (
-        "This is an odd-numbered chapter. Include emphasis_sentence and blockquote_sentence."
+        "Odd chapter: include emphasis_sentence and blockquote_sentence."
         if include_emphasis
-        else "This is an even-numbered chapter. Set emphasis_sentence and blockquote_sentence to null."
+        else "Even chapter: set emphasis_sentence and blockquote_sentence to null."
     )
 
-    return f"""Analyze this chapter for editorial review.
+    return f"""Review this chapter.
 
-Chapter title: {chapter_title}
-Closing heading to place: "{closing_heading}"
+Title: {chapter_title}
+Closing heading: "{closing_heading}"
 {emphasis_instruction}
 
-Chapter text:
+Text:
 ---
 {chapter_text}
 ---"""
@@ -62,6 +74,42 @@ def _parse_category(raw: str) -> ReviewCategory:
     if normalized in {"unusual", "suspicious", "word"}:
         return ReviewCategory.UNUSUAL
     return ReviewCategory.TYPOGRAPHY
+
+
+def _word_count(text: str) -> int:
+    return len(text.split())
+
+
+def _first_sentence(text: str) -> str | None:
+    text = text.strip()
+    if not text:
+        return None
+    match = re.match(r"^(.{1,500}?[.!?])(?:\s|$)", text, flags=re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    if len(text) <= MAX_SENTENCE_CHARS:
+        return text
+    return None
+
+
+def _is_valid_flag(text: str) -> bool:
+    text = text.strip()
+    if not text or len(text) > MAX_FLAG_CHARS:
+        return False
+    if text.count(".") + text.count("!") + text.count("?") > 0:
+        return False
+    return _word_count(text) <= MAX_FLAG_WORDS
+
+
+def _is_valid_sentence(text: str | None) -> str | None:
+    if not text:
+        return None
+    sentence = _first_sentence(str(text).strip())
+    if not sentence or len(sentence) > MAX_SENTENCE_CHARS:
+        return None
+    if _word_count(sentence) > 25:
+        return None
+    return sentence
 
 
 def _extract_json_payload(raw_text: str) -> dict:
@@ -80,31 +128,41 @@ def _extract_json_payload(raw_text: str) -> dict:
 
 
 def _coerce_analysis(payload: dict) -> ChapterAnalysis:
+    seen: set[str] = set()
     review_items: list[ReviewItem] = []
+
     for item in payload.get("review_items", []):
-        if not isinstance(item, dict):
+        if not isinstance(item, dict) or len(review_items) >= MAX_REVIEW_ITEMS:
             continue
         text = str(item.get("text", "")).strip()
-        if not text:
+        if not _is_valid_flag(text):
             continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
         review_items.append(
             ReviewItem(
                 text=text,
                 category=_parse_category(str(item.get("category", "typography"))),
-                note=str(item.get("note", "")).strip(),
             )
         )
 
-    emphasis = payload.get("emphasis_sentence")
-    blockquote = payload.get("blockquote_sentence")
-    anchor = payload.get("closing_anchor")
-
     return ChapterAnalysis(
         review_items=review_items,
-        emphasis_sentence=str(emphasis).strip() if emphasis else None,
-        blockquote_sentence=str(blockquote).strip() if blockquote else None,
-        closing_anchor=str(anchor).strip() if anchor else None,
+        emphasis_sentence=_is_valid_sentence(payload.get("emphasis_sentence")),
+        blockquote_sentence=_is_valid_sentence(payload.get("blockquote_sentence")),
+        closing_anchor=_sanitize_anchor(payload.get("closing_anchor")),
     )
+
+
+def _sanitize_anchor(anchor: object) -> str | None:
+    if not anchor:
+        return None
+    text = str(anchor).strip()
+    if not text or len(text) > 60 or _word_count(text) > 8:
+        return None
+    return text
 
 
 class AnthropicAnalyzer:
@@ -130,7 +188,7 @@ class AnthropicAnalyzer:
 
         message = self.client.messages.create(
             model=self.model,
-            max_tokens=4096,
+            max_tokens=2048,
             system=_build_system_prompt(),
             messages=[
                 {
@@ -147,4 +205,10 @@ class AnthropicAnalyzer:
 
         raw_blocks = [block.text for block in message.content if block.type == "text"]
         payload = _extract_json_payload("\n".join(raw_blocks))
-        return _coerce_analysis(payload)
+        analysis = _coerce_analysis(payload)
+
+        if not include_emphasis:
+            analysis.emphasis_sentence = None
+            analysis.blockquote_sentence = None
+
+        return analysis

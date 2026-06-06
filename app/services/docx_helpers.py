@@ -2,7 +2,6 @@ import re
 
 from docx.enum.text import WD_COLOR_INDEX
 from docx.text.paragraph import Paragraph
-from docx.text.run import Run
 
 from app.models import ReviewCategory
 
@@ -42,11 +41,9 @@ def _find_phrase_span(paragraph_text: str, phrase: str) -> tuple[int, int] | Non
     if not normalized_phrase:
         return None
 
-    norm_start = normalized_para.find(normalized_phrase)
-    if norm_start == -1:
+    if normalized_phrase not in normalized_para:
         return None
 
-    # Map normalized offset back to original text (best-effort for MVP).
     pattern = re.escape(normalized_phrase).replace(r"\ ", r"\s+")
     match = re.search(pattern, paragraph_text, flags=re.IGNORECASE)
     if match:
@@ -81,25 +78,14 @@ def highlight_phrase_in_paragraph(
     return True
 
 
-def add_annotation_note(paragraph: Paragraph, note: str) -> None:
-    if not note:
-        return
-    run: Run = paragraph.add_run(f" [{note}]")
-    run.font.italic = True
-    run.font.highlight_color = WD_COLOR_INDEX.GRAY_25
-
-
 def highlight_in_range(
     paragraphs: list[Paragraph],
     start_idx: int,
     end_idx: int,
     phrase: str,
     color: WD_COLOR_INDEX,
-    note: str = "",
 ) -> bool:
     for idx in range(start_idx, end_idx):
         if highlight_phrase_in_paragraph(paragraphs[idx], phrase, color):
-            if note:
-                add_annotation_note(paragraphs[idx], note)
             return True
     return False

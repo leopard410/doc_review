@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -11,9 +10,8 @@ class ReviewCategory(str, Enum):
 
 
 class ReviewItem(BaseModel):
-    text: str = Field(description="Exact phrase from the chapter to flag")
+    text: str
     category: ReviewCategory
-    note: str = Field(default="", description="Brief reason for human review")
 
 
 class ChapterAnalysis(BaseModel):
@@ -29,12 +27,4 @@ class ChapterAnalysis(BaseModel):
     closing_anchor: str | None = Field(
         default=None,
         description="Short text snippet near where the closing heading should be inserted",
-    )
-
-
-class ProcessOptions(BaseModel):
-    closing_heading: str | None = None
-    chapter_heading_styles: list[str] | None = Field(
-        default=None,
-        description="Word heading style names that mark chapter boundaries (e.g. Heading 1)",
     )

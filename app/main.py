@@ -1,14 +1,19 @@
 import shutil
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
-from contextlib import asynccontextmanager
-
+from docx import Document
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 from app.config import settings
-from app.ui import get_index_html
+from app.services.ai_analyzer import AnthropicAnalyzer
+from app.services.annotator import process_document
+from app.services.chapter_parser import detect_chapters, get_chapter_text
+
+INDEX_HTML_PATH = Path(__file__).parent.parent / "public" / "index.html"
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -17,12 +22,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(
-    title="DOCX Editorial Annotator",
-    description="MVP tool that adds AI-powered editorial annotations to Word documents.",
-    version="0.1.0",
-    lifespan=lifespan,
-)
+app = FastAPI(title="DOCX Editorial Annotator", version="0.1.0", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -30,18 +30,16 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/", response_class=HTMLResponse)
+def index() -> str:
+    return INDEX_HTML_PATH.read_text(encoding="utf-8")
+
+
 @app.post("/process")
 async def process_docx(
-    file: UploadFile = File(..., description="Input .docx manuscript"),
+    file: UploadFile = File(...),
     closing_heading: str = Form(default=None),
-    chapter_heading_styles: str = Form(
-        default=None,
-        description="Comma-separated Word style names for chapter headings (e.g. 'Heading 1')",
-    ),
-    include_report: bool = Form(
-        default=False,
-        description="If true, return JSON report instead of the annotated file",
-    ),
+    chapter_heading_styles: str = Form(default=None),
 ):
     if not file.filename or not file.filename.lower().endswith(".docx"):
         raise HTTPException(status_code=400, detail="Upload must be a .docx file")
@@ -71,52 +69,25 @@ async def process_docx(
     heading_text = closing_heading or settings.closing_heading_default
 
     try:
-        from docx import Document
-
-        from app.services.ai_analyzer import AnthropicAnalyzer
-        from app.services.annotator import process_document
-        from app.services.chapter_parser import detect_chapters, get_chapter_text
-
         document = Document(str(upload_path))
         chapters = detect_chapters(document, heading_styles)
         analyzer = AnthropicAnalyzer()
 
         analyses = []
         for chapter in chapters:
-            text = get_chapter_text(document, chapter)
             analysis = analyzer.analyze_chapter(
                 chapter.title,
-                text,
+                get_chapter_text(document, chapter),
                 include_emphasis=chapter.is_odd,
                 closing_heading=heading_text,
             )
             analyses.append((chapter, analysis))
 
-        report = process_document(
-            str(upload_path),
-            str(output_path),
-            analyses,
-            heading_text,
-        )
+        process_document(str(upload_path), str(output_path), analyses, heading_text)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Processing failed: {exc}",
-        ) from exc
-
-    if include_report:
-        return JSONResponse(
-            {
-                "job_id": job_id,
-                "input_file": file.filename,
-                "output_file": output_path.name,
-                "closing_heading": heading_text,
-                "chapters_processed": len(chapters),
-                "report": report,
-            }
-        )
+        raise HTTPException(status_code=500, detail=f"Processing failed: {exc}") from exc
 
     return FileResponse(
         path=str(output_path),
@@ -124,8 +95,3 @@ async def process_docx(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"X-Job-Id": job_id, "X-Chapters-Processed": str(len(chapters))},
     )
-
-
-@app.get("/", response_class=HTMLResponse)
-def index() -> str:
-    return get_index_html()

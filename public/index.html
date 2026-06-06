@@ -125,12 +125,6 @@
         <div class="hint">Inserted near the end of each chapter</div>
       </div>
 
-      <div class="field">
-        <label for="chapter_heading_styles">Chapter heading styles</label>
-        <input type="text" id="chapter_heading_styles" name="chapter_heading_styles" placeholder="Heading 1">
-        <div class="hint">Comma-separated Word styles used to detect chapters</div>
-      </div>
-
       <button type="submit" id="submit-btn">Process document</button>
     </form>
 
@@ -161,9 +155,6 @@
 
       const closingHeading = document.getElementById("closing_heading").value.trim();
       if (closingHeading) formData.append("closing_heading", closingHeading);
-
-      const styles = document.getElementById("chapter_heading_styles").value.trim();
-      if (styles) formData.append("chapter_heading_styles", styles);
 
       submitBtn.disabled = true;
       setStatus("loading", "Processing… this may take a minute for longer manuscripts.");

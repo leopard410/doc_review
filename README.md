@@ -38,48 +38,14 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Open http://localhost:8000 for the upload UI, or http://localhost:8000/docs for the API reference.
 
-## Create a sample document
-
-```bash
-python scripts/create_sample_docx.py
-```
-
-This writes `sample/manuscript.docx` with three chapters and intentional editorial flags (`unusal`, `Teh`, etc.).
-
 ## Process a document
 
-### curl
+Upload a `.docx` at http://localhost:8000, or use curl:
 
 ```bash
 curl -X POST "http://localhost:8000/process" \
-  -F "file=@sample/manuscript.docx" \
+  -F "file=@your-manuscript.docx" \
   -o annotated_manuscript.docx
-```
-
-### With options
-
-```bash
-curl -X POST "http://localhost:8000/process" \
-  -F "file=@sample/manuscript.docx" \
-  -F "closing_heading=A manner of closing" \
-  -F "chapter_heading_styles=Heading 1" \
-  -F "include_report=true"
-```
-
-### Python
-
-```python
-import requests
-
-with open("sample/manuscript.docx", "rb") as f:
-    response = requests.post(
-        "http://localhost:8000/process",
-        files={"file": ("manuscript.docx", f)},
-        data={"closing_heading": "A manner of closing"},
-    )
-
-with open("annotated_manuscript.docx", "wb") as out:
-    out.write(response.content)
 ```
 
 ## Annotation legend
@@ -92,7 +58,7 @@ with open("annotated_manuscript.docx", "wb") as out:
 | Pink | Suggested emphasis (odd chapters) |
 | Gray | Suggested block quote (odd chapters) |
 
-Italic bracketed notes (e.g. `[spelling: …]`) are added next to matched highlights when the AI provides a reason.
+Only highlight colors are added — no inline text notes are inserted into the manuscript.
 
 ## Configuration
 
@@ -116,8 +82,8 @@ app/
     ai_analyzer.py        # Anthropic integration
     annotator.py          # Highlight + heading insertion
     docx_helpers.py       # Text highlighting utilities
-scripts/
-  create_sample_docx.py   # Sample manuscript generator
+public/
+  index.html              # Upload UI
 ```
 
 ## Limitations (MVP)

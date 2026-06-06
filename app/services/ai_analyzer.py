@@ -6,41 +6,48 @@ import anthropic
 from app.config import settings
 from app.models import ChapterAnalysis, ReviewCategory, ReviewItem
 
-MAX_REVIEW_ITEMS = 8
-MAX_FLAG_WORDS = 3
-MAX_FLAG_CHARS = 40
-MAX_SENTENCE_CHARS = 220
+MAX_REVIEW_ITEMS = 12
+MAX_FLAG_WORDS = 6
+MAX_FLAG_CHARS = 80
+MAX_SENTENCE_CHARS = 300
 
 
 def _build_system_prompt() -> str:
-    return """You are a simple proofreading assistant. Flag only small issues for human review.
+    return """You are an editorial review assistant for a Word manuscript.
 
 Return ONLY valid JSON:
 {
   "review_items": [
-    {"text": "word or short phrase", "category": "spelling|unusual|typography"}
+    {"text": "exact text from chapter", "category": "spelling|unusual|typography"}
   ],
   "emphasis_sentence": "one sentence or null",
   "blockquote_sentence": "one sentence or null",
-  "closing_anchor": "3-8 words from near chapter end or null"
+  "closing_anchor": "short phrase near chapter end or null"
 }
 
-Rules for review_items:
-- Flag ONLY: likely misspellings, odd/unusual words, obvious typos (wrong punctuation, doubled letters).
-- Each "text" must be 1-3 words max, copied exactly from the chapter.
-- Maximum 8 items per chapter.
-- Do NOT flag: story structure, repeated scenes, chapter numbers, placeholders, whole sentences, or paragraphs.
-- Do NOT add explanations.
+## Editorial review highlights (every chapter)
+Find and flag items for human review only. Do NOT rewrite or correct text.
 
-Rules for emphasis_sentence / blockquote_sentence (odd chapters only):
-- Pick exactly ONE normal prose sentence each (under 25 words).
-- Must appear verbatim in the chapter.
-- Do not pick the opening sentence or an entire paragraph.
+1. spelling — likely misspellings (e.g. "teh", "recieve")
+2. unusual — unusual, rare, or suspicious words that may need verification
+3. typography — typos, doubled spaces, wrong punctuation, stray characters
 
-Rules for closing_anchor:
-- A short phrase (3-8 words) from the last third of the chapter.
+Rules:
+- Each "text" must be copied EXACTLY from the chapter (same spelling and punctuation).
+- Prefer single words or short phrases (1-6 words).
+- Include ALL reasonable candidates you find (up to 12 per chapter).
+- If the chapter is clean, return an empty review_items array.
 
-Do not rewrite or correct anything."""
+## Editorial emphasis (odd chapters only)
+Pick exactly:
+- emphasis_sentence: one strong sentence suitable for typographic emphasis
+- blockquote_sentence: one different sentence suitable for a block quote
+Both must be single sentences copied verbatim from the chapter.
+
+## Closing heading placement (every chapter)
+- closing_anchor: a short phrase (3-10 words) from the last third of the chapter, marking where a closing section heading should be inserted after that point.
+
+Do not add explanations. Do not rewrite the manuscript."""
 
 
 def _build_user_prompt(
@@ -49,19 +56,23 @@ def _build_user_prompt(
     include_emphasis: bool,
     closing_heading: str,
 ) -> str:
-    emphasis_instruction = (
-        "Odd chapter: include emphasis_sentence and blockquote_sentence."
-        if include_emphasis
-        else "Even chapter: set emphasis_sentence and blockquote_sentence to null."
-    )
+    if include_emphasis:
+        emphasis_instruction = (
+            "This is chapter 1, 3, 5, etc. (odd). "
+            "You MUST provide emphasis_sentence and blockquote_sentence."
+        )
+    else:
+        emphasis_instruction = (
+            "This is an even chapter. Set emphasis_sentence and blockquote_sentence to null."
+        )
 
-    return f"""Review this chapter.
+    return f"""Analyze this chapter for editorial review.
 
-Title: {chapter_title}
-Closing heading: "{closing_heading}"
+Chapter: {chapter_title}
+Closing heading to insert: "{closing_heading}"
 {emphasis_instruction}
 
-Text:
+Chapter text:
 ---
 {chapter_text}
 ---"""
@@ -84,10 +95,10 @@ def _first_sentence(text: str) -> str | None:
     text = text.strip()
     if not text:
         return None
-    match = re.match(r"^(.{1,500}?[.!?])(?:\s|$)", text, flags=re.DOTALL)
+    match = re.match(r"^(.{1,500}?[.!?\"'])(?:\s|$)", text, flags=re.DOTALL)
     if match:
-        return match.group(1).strip()
-    if len(text) <= MAX_SENTENCE_CHARS:
+        return match.group(1).strip().strip("\"'")
+    if len(text) <= MAX_SENTENCE_CHARS and _word_count(text) <= 35:
         return text
     return None
 
@@ -96,9 +107,12 @@ def _is_valid_flag(text: str) -> bool:
     text = text.strip()
     if not text or len(text) > MAX_FLAG_CHARS:
         return False
-    if text.count(".") + text.count("!") + text.count("?") > 0:
+    if _word_count(text) > MAX_FLAG_WORDS:
         return False
-    return _word_count(text) <= MAX_FLAG_WORDS
+    # Reject full sentences (likely over-flagging), allow words with apostrophes/hyphens.
+    if text.endswith((".", "!", "?")) and _word_count(text) > 4:
+        return False
+    return True
 
 
 def _is_valid_sentence(text: str | None) -> str | None:
@@ -107,7 +121,7 @@ def _is_valid_sentence(text: str | None) -> str | None:
     sentence = _first_sentence(str(text).strip())
     if not sentence or len(sentence) > MAX_SENTENCE_CHARS:
         return None
-    if _word_count(sentence) > 25:
+    if _word_count(sentence) > 35:
         return None
     return sentence
 
@@ -160,7 +174,7 @@ def _sanitize_anchor(anchor: object) -> str | None:
     if not anchor:
         return None
     text = str(anchor).strip()
-    if not text or len(text) > 60 or _word_count(text) > 8:
+    if not text or len(text) > 80 or _word_count(text) > 10:
         return None
     return text
 

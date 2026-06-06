@@ -20,14 +20,6 @@ def _normalize_whitespace(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _build_char_map(paragraph: Paragraph) -> list[tuple[int, int]]:
-    mapping: list[tuple[int, int]] = []
-    for run_idx, run in enumerate(paragraph.runs):
-        for char_idx, _ in enumerate(run.text):
-            mapping.append((run_idx, char_idx))
-    return mapping
-
-
 def _find_phrase_span(paragraph_text: str, phrase: str) -> tuple[int, int] | None:
     if not phrase or not phrase.strip():
         return None
@@ -42,7 +34,13 @@ def _find_phrase_span(paragraph_text: str, phrase: str) -> tuple[int, int] | Non
         return None
 
     if normalized_phrase not in normalized_para:
-        return None
+        # Case-insensitive fallback
+        lower_para = normalized_para.lower()
+        lower_phrase = normalized_phrase.lower()
+        idx = lower_para.find(lower_phrase)
+        if idx == -1:
+            return None
+        normalized_phrase = normalized_para[idx : idx + len(lower_phrase)]
 
     pattern = re.escape(normalized_phrase).replace(r"\ ", r"\s+")
     match = re.search(pattern, paragraph_text, flags=re.IGNORECASE)
@@ -52,19 +50,16 @@ def _find_phrase_span(paragraph_text: str, phrase: str) -> tuple[int, int] | Non
     return None
 
 
-def highlight_phrase_in_paragraph(
-    paragraph: Paragraph,
-    phrase: str,
-    color: WD_COLOR_INDEX,
-) -> bool:
-    paragraph_text = paragraph.text
-    span = _find_phrase_span(paragraph_text, phrase)
-    if span is None:
-        return False
+def _build_char_map(paragraph: Paragraph) -> list[tuple[int, int]]:
+    mapping: list[tuple[int, int]] = []
+    for run_idx, run in enumerate(paragraph.runs):
+        for char_idx, _ in enumerate(run.text):
+            mapping.append((run_idx, char_idx))
+    return mapping
 
-    start, end = span
+
+def _highlight_via_runs(paragraph: Paragraph, start: int, end: int, color: WD_COLOR_INDEX) -> bool:
     char_map = _build_char_map(paragraph)
-
     if not char_map or end > len(char_map):
         return False
 
@@ -74,7 +69,54 @@ def highlight_phrase_in_paragraph(
 
     for run_idx in run_indices:
         paragraph.runs[run_idx].font.highlight_color = color
+    return True
 
+
+def _clear_runs(paragraph: Paragraph) -> None:
+    for run in list(paragraph.runs):
+        run._r.getparent().remove(run._r)
+
+
+def _rebuild_with_highlight(
+    paragraph: Paragraph,
+    start: int,
+    end: int,
+    color: WD_COLOR_INDEX,
+) -> None:
+    text = paragraph.text
+    before = text[:start]
+    middle = text[start:end]
+    after = text[end:]
+
+    _clear_runs(paragraph)
+
+    if before:
+        paragraph.add_run(before)
+    highlighted = paragraph.add_run(middle)
+    highlighted.font.highlight_color = color
+    if after:
+        paragraph.add_run(after)
+
+
+def highlight_phrase_in_paragraph(
+    paragraph: Paragraph,
+    phrase: str,
+    color: WD_COLOR_INDEX,
+) -> bool:
+    paragraph_text = paragraph.text
+    if not paragraph_text.strip():
+        return False
+
+    span = _find_phrase_span(paragraph_text, phrase)
+    if span is None:
+        return False
+
+    start, end = span
+
+    if paragraph.runs and _highlight_via_runs(paragraph, start, end, color):
+        return True
+
+    _rebuild_with_highlight(paragraph, start, end, color)
     return True
 
 

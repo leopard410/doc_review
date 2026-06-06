@@ -1,0 +1,7 @@
+.venv
+venv
+output
+uploads
+.env
+sample
+__pycache__

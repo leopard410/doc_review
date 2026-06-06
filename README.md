@@ -127,6 +127,51 @@ scripts/
 - Large documents incur per-chapter API costs and processing time
 - Formatting is preserved where possible, but complex run structures may simplify on highlight
 
+## Deploy to Vercel
+
+Vercel supports this FastAPI app with zero extra wiring. The repo already includes `pyproject.toml` and `vercel.json`.
+
+### 1. Import the GitHub repo
+
+1. Go to [vercel.com/new](https://vercel.com/new)
+2. Import your connected GitHub repository
+3. Leave **Framework Preset** as auto-detected (FastAPI)
+4. Do not set a custom build command
+
+### 2. Add environment variables
+
+In **Project → Settings → Environment Variables**, add:
+
+| Name | Value |
+|------|-------|
+| `ANTHROPIC_API_KEY` | your Anthropic API key |
+| `ANTHROPIC_MODEL` | `claude-sonnet-4-20250514` (optional) |
+| `CLOSING_HEADING_DEFAULT` | `A manner of closing` (optional) |
+
+Redeploy after saving env vars.
+
+### 3. Deploy
+
+Vercel deploys automatically on every push to `main`, or run locally:
+
+```bash
+npm i -g vercel   # if you don't have the CLI
+vercel login
+vercel --prod
+```
+
+Your upload UI will be at `https://your-project.vercel.app/`.
+
+### Vercel limitations
+
+This MVP can work on Vercel, but keep these constraints in mind:
+
+- **Timeouts** — each upload runs as one serverless function. Multi-chapter manuscripts with several Anthropic calls may exceed limits on the Hobby plan (10s). Pro allows longer runs (up to 300s with `vercel.json`).
+- **Upload size** — request body is limited to about **4.5 MB**.
+- **No persistent disk** — files are written to `/tmp` during a request only.
+
+For heavier manuscripts, consider **Railway**, **Render**, or **Fly.io** instead — they are better suited to long-running Python APIs.
+
 ## License
 
 Internal proof-of-concept — use at your discretion.

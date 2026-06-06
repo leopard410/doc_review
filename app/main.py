@@ -2,26 +2,27 @@ import shutil
 import uuid
 from pathlib import Path
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.services.ai_analyzer import AnthropicAnalyzer
-from app.services.annotator import process_document
-from app.services.chapter_parser import detect_chapters, get_chapter_text
+from app.ui import get_index_html
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+    Path(settings.output_dir).mkdir(parents=True, exist_ok=True)
+    yield
+
 
 app = FastAPI(
     title="DOCX Editorial Annotator",
     description="MVP tool that adds AI-powered editorial annotations to Word documents.",
     version="0.1.0",
+    lifespan=lifespan,
 )
-
-Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
-Path(settings.output_dir).mkdir(parents=True, exist_ok=True)
-
-STATIC_DIR = Path(__file__).parent / "static"
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/health")
@@ -71,6 +72,10 @@ async def process_docx(
 
     try:
         from docx import Document
+
+        from app.services.ai_analyzer import AnthropicAnalyzer
+        from app.services.annotator import process_document
+        from app.services.chapter_parser import detect_chapters, get_chapter_text
 
         document = Document(str(upload_path))
         chapters = detect_chapters(document, heading_styles)
@@ -123,4 +128,4 @@ async def process_docx(
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    return (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    return get_index_html()

@@ -1,0 +1,15 @@
+[project]
+name = "docx-editorial-annotator"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "python-docx>=1.1.2",
+    "anthropic>=0.42.0",
+    "python-multipart>=0.0.12",
+    "pydantic-settings>=2.6.0",
+]
+
+[tool.vercel]
+entrypoint = "app.main:app"

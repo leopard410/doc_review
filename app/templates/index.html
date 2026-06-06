@@ -236,7 +236,11 @@
         link.remove();
         URL.revokeObjectURL(url);
 
-        setStatus("success", `Done. ${chapters} chapter(s) processed. Download started.`);
+        let message = `Done. ${chapters} chapter(s) processed. Download started.`;
+        if (response.headers.get("X-Dev-Logging") === "true") {
+          message += " Your work is logging to the dev!";
+        }
+        setStatus("success", message);
       } catch (err) {
         setStatus("error", err.message || "Something went wrong.");
       } finally {

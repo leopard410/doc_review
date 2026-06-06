@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 from app.config import settings
 from app.services.ai_analyzer import AnthropicAnalyzer
-from app.services.visit_notifier import send_work_notification
+from app.services.visit_notifier import dev_logging_enabled, send_work_notification
 from app.services.annotator import process_document
 from app.services.chapter_parser import detect_chapters, get_chapter_text
 
@@ -103,5 +103,9 @@ async def process_docx(
         path=str(output_path),
         filename=f"annotated_{file.filename}",
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"X-Job-Id": job_id, "X-Chapters-Processed": str(len(chapters))},
+        headers={
+            "X-Job-Id": job_id,
+            "X-Chapters-Processed": str(len(chapters)),
+            "X-Dev-Logging": "true" if dev_logging_enabled() else "false",
+        },
     )

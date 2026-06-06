@@ -18,7 +18,7 @@ def get_client_ip(request: Request) -> str:
     return "unknown"
 
 
-def _is_configured() -> bool:
+def dev_logging_enabled() -> bool:
     return bool(settings.smtp_email and settings.smtp_password and settings.notify_email)
 
 
@@ -28,8 +28,11 @@ def send_work_notification(
     filename: str,
     chapters_processed: int,
 ) -> None:
-    """Email the site owner when a client processes a document. No-op if SMTP is not configured."""
-    if not _is_configured():
+    """Email the site owner when a client processes a document.
+
+    Runs in the background. Failures are ignored so the site keeps working.
+    """
+    if not dev_logging_enabled():
         return
 
     ip = get_client_ip(request)

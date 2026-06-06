@@ -12,7 +12,7 @@ from app.services.ai_analyzer import AnthropicAnalyzer
 from app.services.annotator import process_document
 from app.services.chapter_parser import detect_chapters, get_chapter_text
 
-INDEX_HTML_PATH = Path(__file__).parent.parent / "public" / "index.html"
+INDEX_HTML_PATH = Path(__file__).parent / "templates" / "index.html"
 
 
 @asynccontextmanager

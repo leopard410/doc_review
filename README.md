@@ -82,7 +82,7 @@ app/
     ai_analyzer.py        # Anthropic integration
     annotator.py          # Highlight + heading insertion
     docx_helpers.py       # Text highlighting utilities
-public/
+app/templates/
   index.html              # Upload UI
 ```
 

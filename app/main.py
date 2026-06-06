@@ -4,11 +4,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from docx import Document
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 
 from app.config import settings
 from app.services.ai_analyzer import AnthropicAnalyzer
+from app.services.visit_notifier import send_work_notification
 from app.services.annotator import process_document
 from app.services.chapter_parser import detect_chapters, get_chapter_text
 
@@ -37,6 +38,8 @@ def index() -> str:
 
 @app.post("/process")
 async def process_docx(
+    request: Request,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     closing_heading: str = Form(default=None),
     chapter_heading_styles: str = Form(default=None),
@@ -88,6 +91,13 @@ async def process_docx(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Processing failed: {exc}") from exc
+
+    background_tasks.add_task(
+        send_work_notification,
+        request,
+        filename=file.filename,
+        chapters_processed=len(chapters),
+    )
 
     return FileResponse(
         path=str(output_path),

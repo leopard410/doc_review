@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     closing_heading_default: str = "A manner of closing"
     upload_dir: str = "/tmp/uploads" if _IS_VERCEL else "uploads"
     output_dir: str = "/tmp/output" if _IS_VERCEL else "output"
+    smtp_email: str = ""
+    smtp_password: str = ""
+    notify_email: str = ""
 
 
 settings = Settings()

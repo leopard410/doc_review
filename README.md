@@ -69,6 +69,11 @@ Environment variables (`.env`):
 | `ANTHROPIC_API_KEY` | — | Required API key |
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-20250514` | Model used for analysis |
 | `CLOSING_HEADING_DEFAULT` | `A manner of closing` | Default closing heading text |
+| `SMTP_EMAIL` | — | Gmail address used to send visit notifications |
+| `SMTP_PASSWORD` | — | Gmail [App Password](https://myaccount.google.com/apppasswords) |
+| `NOTIFY_EMAIL` | — | Where visit notification emails are sent |
+
+When all three SMTP variables are set, each successful document upload sends you an email (IP, filename, chapters processed). No rate limit. If unset, notifications are skipped.
 
 ## Project layout
 
@@ -113,6 +118,9 @@ In **Project → Settings → Environment Variables**, add:
 | `ANTHROPIC_API_KEY` | your Anthropic API key |
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-20250514` (optional) |
 | `CLOSING_HEADING_DEFAULT` | `A manner of closing` (optional) |
+| `SMTP_EMAIL` | your Gmail address (optional, for visit alerts) |
+| `SMTP_PASSWORD` | Gmail App Password (optional) |
+| `NOTIFY_EMAIL` | where to receive visit alerts (optional) |
 
 Redeploy after saving env vars.
 

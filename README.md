@@ -58,7 +58,7 @@ curl -X POST "http://localhost:8000/process" \
 | Pink | Suggested emphasis (odd chapters) |
 | Gray | Suggested block quote (odd chapters) |
 
-Only highlight colors are added — no inline text notes are inserted into the manuscript.
+Spelling mistakes are highlighted in yellow with a short hint after the word (e.g. `[impotant->important]`). Other issues use highlight colors only. Text is never auto-corrected.
 
 ## Configuration
 

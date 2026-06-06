@@ -2,7 +2,7 @@ from docx import Document
 from docx.oxml import OxmlElement
 from docx.text.paragraph import Paragraph
 
-from app.models import ChapterAnalysis
+from app.models import ChapterAnalysis, ReviewCategory
 from app.services.chapter_parser import Chapter
 from app.services.docx_helpers import (
     BLOCKQUOTE_COLOR,
@@ -66,12 +66,16 @@ def _apply_chapter_annotations(
     end = chapter.end_para_idx
 
     for item in analysis.review_items:
+        hint = None
+        if item.category == ReviewCategory.SPELLING and item.suggestion:
+            hint = f"{item.text}->{item.suggestion}"
         highlight_in_range(
             paragraphs,
             start,
             end,
             item.text,
             CATEGORY_COLORS[item.category],
+            hint,
         )
 
     if chapter.is_odd:

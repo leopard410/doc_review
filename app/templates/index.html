@@ -106,6 +106,43 @@
       color: #1d4ed8;
       border: 1px solid #bfdbfe;
     }
+    .legend {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid #e4e4e7;
+    }
+    .legend h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin: 0 0 10px;
+      color: #52525b;
+    }
+    .legend-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 8px;
+    }
+    .legend-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      color: #52525b;
+    }
+    .swatch {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      flex-shrink: 0;
+    }
+    .swatch.yellow { background: #ffff00; }
+    .swatch.turquoise { background: #00ffff; }
+    .swatch.green { background: #00ff00; }
+    .swatch.pink { background: #ff66cc; }
+    .swatch.gray { background: #c0c0c0; }
   </style>
 </head>
 <body>
@@ -129,6 +166,17 @@
     </form>
 
     <div id="status" class="status"></div>
+
+    <div class="legend">
+      <h2>Highlight colors in the output document</h2>
+      <ul class="legend-list">
+        <li><span class="swatch yellow"></span> Yellow — possible spelling mistake (with hint, e.g. impotant→important)</li>
+        <li><span class="swatch turquoise"></span> Turquoise — unusual or suspicious word</li>
+        <li><span class="swatch green"></span> Green — possible typographical issue</li>
+        <li><span class="swatch pink"></span> Pink — suggested emphasis sentence (chapters 1, 3, 5…)</li>
+        <li><span class="swatch gray"></span> Gray — suggested block quote sentence (odd chapters)</li>
+      </ul>
+    </div>
   </div>
 
   <script>

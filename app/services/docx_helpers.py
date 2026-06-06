@@ -77,11 +77,17 @@ def _clear_runs(paragraph: Paragraph) -> None:
         run._r.getparent().remove(run._r)
 
 
+def _append_hint(paragraph: Paragraph, hint: str) -> None:
+    run = paragraph.add_run(f" [{hint}]")
+    run.font.italic = True
+
+
 def _rebuild_with_highlight(
     paragraph: Paragraph,
     start: int,
     end: int,
     color: WD_COLOR_INDEX,
+    hint: str | None = None,
 ) -> None:
     text = paragraph.text
     before = text[:start]
@@ -94,6 +100,8 @@ def _rebuild_with_highlight(
         paragraph.add_run(before)
     highlighted = paragraph.add_run(middle)
     highlighted.font.highlight_color = color
+    if hint:
+        _append_hint(paragraph, hint)
     if after:
         paragraph.add_run(after)
 
@@ -102,6 +110,7 @@ def highlight_phrase_in_paragraph(
     paragraph: Paragraph,
     phrase: str,
     color: WD_COLOR_INDEX,
+    hint: str | None = None,
 ) -> bool:
     paragraph_text = paragraph.text
     if not paragraph_text.strip():
@@ -114,9 +123,11 @@ def highlight_phrase_in_paragraph(
     start, end = span
 
     if paragraph.runs and _highlight_via_runs(paragraph, start, end, color):
+        if hint:
+            _append_hint(paragraph, hint)
         return True
 
-    _rebuild_with_highlight(paragraph, start, end, color)
+    _rebuild_with_highlight(paragraph, start, end, color, hint)
     return True
 
 
@@ -126,8 +137,9 @@ def highlight_in_range(
     end_idx: int,
     phrase: str,
     color: WD_COLOR_INDEX,
+    hint: str | None = None,
 ) -> bool:
     for idx in range(start_idx, end_idx):
-        if highlight_phrase_in_paragraph(paragraphs[idx], phrase, color):
+        if highlight_phrase_in_paragraph(paragraphs[idx], phrase, color, hint):
             return True
     return False

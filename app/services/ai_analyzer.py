@@ -18,7 +18,7 @@ def _build_system_prompt() -> str:
 Return ONLY valid JSON:
 {
   "review_items": [
-    {"text": "exact text from chapter", "category": "spelling|unusual|typography"}
+    {"text": "exact text from chapter", "category": "spelling|unusual|typography", "suggestion": "corrected spelling or null"}
   ],
   "emphasis_sentence": "one sentence or null",
   "blockquote_sentence": "one sentence or null",
@@ -28,9 +28,9 @@ Return ONLY valid JSON:
 ## Editorial review highlights (every chapter)
 Find and flag items for human review only. Do NOT rewrite or correct text.
 
-1. spelling — likely misspellings (e.g. "teh", "recieve")
-2. unusual — unusual, rare, or suspicious words that may need verification
-3. typography — typos, doubled spaces, wrong punctuation, stray characters
+1. spelling — likely misspellings (e.g. "teh", "impotant"). For each, add "suggestion" with the likely correct spelling (e.g. "important"). Do NOT change the manuscript text.
+2. unusual — unusual, rare, or suspicious words that may need verification (suggestion: null)
+3. typography — typos, doubled spaces, wrong punctuation, stray characters (suggestion: null)
 
 Rules:
 - Each "text" must be copied EXACTLY from the chapter (same spelling and punctuation).
@@ -155,11 +155,10 @@ def _coerce_analysis(payload: dict) -> ChapterAnalysis:
         if key in seen:
             continue
         seen.add(key)
+        category = _parse_category(str(item.get("category", "typography")))
+        suggestion = _sanitize_suggestion(item.get("suggestion"), text, category)
         review_items.append(
-            ReviewItem(
-                text=text,
-                category=_parse_category(str(item.get("category", "typography"))),
-            )
+            ReviewItem(text=text, category=category, suggestion=suggestion)
         )
 
     return ChapterAnalysis(
@@ -168,6 +167,21 @@ def _coerce_analysis(payload: dict) -> ChapterAnalysis:
         blockquote_sentence=_is_valid_sentence(payload.get("blockquote_sentence")),
         closing_anchor=_sanitize_anchor(payload.get("closing_anchor")),
     )
+
+
+def _sanitize_suggestion(
+    raw: object,
+    flagged_text: str,
+    category: ReviewCategory,
+) -> str | None:
+    if category != ReviewCategory.SPELLING or not raw:
+        return None
+    suggestion = str(raw).strip()
+    if not suggestion or len(suggestion) > 40:
+        return None
+    if suggestion.lower() == flagged_text.lower():
+        return None
+    return suggestion
 
 
 def _sanitize_anchor(anchor: object) -> str | None:

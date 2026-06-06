@@ -12,6 +12,7 @@ class ReviewCategory(str, Enum):
 class ReviewItem(BaseModel):
     text: str
     category: ReviewCategory
+    suggestion: str | None = None
 
 
 class ChapterAnalysis(BaseModel):

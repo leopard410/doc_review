@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DOCX Editorial Annotator</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f4f4f5;
+      color: #18181b;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e4e4e7;
+      border-radius: 12px;
+      padding: 32px;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    }
+    h1 {
+      font-size: 1.35rem;
+      margin: 0 0 8px;
+    }
+    p.sub {
+      color: #71717a;
+      font-size: 0.9rem;
+      margin: 0 0 24px;
+      line-height: 1.5;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .field { margin-bottom: 18px; }
+    input[type="file"],
+    input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d4d4d8;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      background: #fff;
+    }
+    input[type="file"] { padding: 8px; }
+    input[type="text"]:focus,
+    input[type="file"]:focus {
+      outline: 2px solid #3b82f6;
+      outline-offset: 1px;
+      border-color: #3b82f6;
+    }
+    .hint {
+      font-size: 0.78rem;
+      color: #a1a1aa;
+      margin-top: 4px;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #18181b;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    button:hover:not(:disabled) { background: #27272a; }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      display: none;
+    }
+    .status.error {
+      display: block;
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+    }
+    .status.success {
+      display: block;
+      background: #f0fdf4;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+    .status.loading {
+      display: block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>DOCX Editorial Annotator</h1>
+    <p class="sub">Upload a Word document to add editorial review highlights and annotations. Content is not rewritten.</p>
+
+    <form id="upload-form">
+      <div class="field">
+        <label for="file">Word document (.docx)</label>
+        <input type="file" id="file" name="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+      </div>
+
+      <div class="field">
+        <label for="closing_heading">Closing heading</label>
+        <input type="text" id="closing_heading" name="closing_heading" value="A manner of closing">
+        <div class="hint">Inserted near the end of each chapter</div>
+      </div>
+
+      <div class="field">
+        <label for="chapter_heading_styles">Chapter heading styles</label>
+        <input type="text" id="chapter_heading_styles" name="chapter_heading_styles" placeholder="Heading 1">
+        <div class="hint">Comma-separated Word styles used to detect chapters</div>
+      </div>
+
+      <button type="submit" id="submit-btn">Process document</button>
+    </form>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById("upload-form");
+    const statusEl = document.getElementById("status");
+    const submitBtn = document.getElementById("submit-btn");
+
+    function setStatus(type, message) {
+      statusEl.className = "status " + type;
+      statusEl.textContent = message;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const fileInput = document.getElementById("file");
+      if (!fileInput.files.length) {
+        setStatus("error", "Please choose a .docx file.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+
+      const closingHeading = document.getElementById("closing_heading").value.trim();
+      if (closingHeading) formData.append("closing_heading", closingHeading);
+
+      const styles = document.getElementById("chapter_heading_styles").value.trim();
+      if (styles) formData.append("chapter_heading_styles", styles);
+
+      submitBtn.disabled = true;
+      setStatus("loading", "Processing… this may take a minute for longer manuscripts.");
+
+      try {
+        const response = await fetch("/process", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          let detail = "Processing failed.";
+          try {
+            const err = await response.json();
+            detail = err.detail || detail;
+          } catch (_) {}
+          throw new Error(detail);
+        }
+
+        const blob = await response.blob();
+        const chapters = response.headers.get("X-Chapters-Processed") || "?";
+        const originalName = fileInput.files[0].name;
+        const downloadName = "annotated_" + originalName;
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = downloadName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+
+        setStatus("success", `Done. ${chapters} chapter(s) processed. Download started.`);
+      } catch (err) {
+        setStatus("error", err.message || "Something went wrong.");
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
